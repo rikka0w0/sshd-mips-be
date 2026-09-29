@@ -31,10 +31,15 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/toolchain"
           curl -L "$TOOLCHAIN_URL" -o /tmp/openwrt-toolchain.tar.zst
           tar --use-compress-program=unzstd -xf /tmp/openwrt-toolchain.tar.zst -C "$GITHUB_WORKSPACE/toolchain" --strip-components=1
-          TOOLCHAIN_BIN="$(dirname "$(find "$GITHUB_WORKSPACE/toolchain" -type f -name "${TARGET}-gcc" -print -quit)")"
-          test -n "$TOOLCHAIN_BIN"
+          TOOLCHAIN_GCC="$(find "$GITHUB_WORKSPACE/toolchain" \( -type f -o -type l \) -name "${TARGET}-gcc" -print -quit)"
+          if [ -z "$TOOLCHAIN_GCC" ]; then
+            echo "failed to find ${TARGET}-gcc under unpacked toolchain" >&2
+            find "$GITHUB_WORKSPACE/toolchain" -maxdepth 4 -type d -o -type l -o -type f | sort | sed -n '1,200p' >&2
+            exit 1
+          fi
+          TOOLCHAIN_BIN="$(dirname "$TOOLCHAIN_GCC")"
           echo "$TOOLCHAIN_BIN" >> "$GITHUB_PATH"
-          "$TOOLCHAIN_BIN/${TARGET}-gcc" -v
+          "$TOOLCHAIN_GCC" -v
 
       - name: Prepare paths
         run: |
