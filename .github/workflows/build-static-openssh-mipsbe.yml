@@ -63,8 +63,10 @@ jobs:
           cd "zlib-${ZLIB_VERSION}"
           CHOST="$TARGET" CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" \
             ./configure --static --prefix="$DEPS"
-          make -j"$(nproc)"
-          make install
+          make -j"$(nproc)" CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib"
+          make install prefix="$DEPS"
+          test -f "$DEPS/include/zlib.h" || { find "$DEPS" -maxdepth 3 -print; exit 1; }
+          test -f "$DEPS/lib/libz.a" || { find "$DEPS" -maxdepth 3 -print; exit 1; }
 
       - name: Build static OpenSSL
         run: |
@@ -80,6 +82,9 @@ jobs:
               --openssldir="$DEPS/ssl"
           make -j"$(nproc)"
           make install_sw
+          test -f "$DEPS/include/openssl/ssl.h" || { find "$DEPS" -maxdepth 4 -print; exit 1; }
+          test -f "$DEPS/lib/libssl.a" || { find "$DEPS" -maxdepth 4 -print; exit 1; }
+          test -f "$DEPS/lib/libcrypto.a" || { find "$DEPS" -maxdepth 4 -print; exit 1; }
 
       - name: Build static OpenSSH
         run: |
