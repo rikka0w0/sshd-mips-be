@@ -47,7 +47,7 @@ jobs:
         run: |
           set -eux
           echo "DEPS=$GITHUB_WORKSPACE/deps" >> "$GITHUB_ENV"
-          echo "DESTDIR=$GITHUB_WORKSPACE/rootfs" >> "$GITHUB_ENV"
+          echo "ROOTFS=$GITHUB_WORKSPACE/rootfs" >> "$GITHUB_ENV"
           echo "CFLAGS=-Os -pipe -mips32 -mtune=mips32 -msoft-float" >> "$GITHUB_ENV"
           echo "CPPFLAGS=-I$GITHUB_WORKSPACE/deps/include" >> "$GITHUB_ENV"
           echo "LDFLAGS=-static -L$GITHUB_WORKSPACE/deps/lib" >> "$GITHUB_ENV"
@@ -64,7 +64,7 @@ jobs:
           CHOST="$TARGET" CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" \
             ./configure --static --prefix="$DEPS"
           make -j"$(nproc)" CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib"
-          make install prefix="$DEPS"
+          make install DESTDIR= prefix="$DEPS"
           test -f "$DEPS/include/zlib.h" || { find "$DEPS" -maxdepth 3 -print; exit 1; }
           test -f "$DEPS/lib/libz.a" || { find "$DEPS" -maxdepth 3 -print; exit 1; }
 
@@ -81,7 +81,7 @@ jobs:
               --prefix="$DEPS" \
               --openssldir="$DEPS/ssl"
           make -j"$(nproc)"
-          make install_sw
+          make install_sw DESTDIR=
           test -f "$DEPS/include/openssl/ssl.h" || { find "$DEPS" -maxdepth 4 -print; exit 1; }
           test -f "$DEPS/lib/libssl.a" || { find "$DEPS" -maxdepth 4 -print; exit 1; }
           test -f "$DEPS/lib/libcrypto.a" || { find "$DEPS" -maxdepth 4 -print; exit 1; }
@@ -126,41 +126,41 @@ jobs:
               ac_cv_func_arc4random=no \
               ac_cv_func_arc4random_buf=no || { cat config.log; exit 1; }
           make -j"$(nproc)" sshd sftp-server ssh-keygen
-          install -d "$DESTDIR$PREFIX/sbin" "$DESTDIR$PREFIX/bin" "$DESTDIR$PREFIX/libexec"
-          install -m 0755 sshd "$DESTDIR$PREFIX/sbin/sshd"
-          install -m 0755 ssh-keygen "$DESTDIR$PREFIX/bin/ssh-keygen"
-          install -m 0755 sftp-server "$DESTDIR$PREFIX/libexec/sftp-server"
+          install -d "$ROOTFS$PREFIX/sbin" "$ROOTFS$PREFIX/bin" "$ROOTFS$PREFIX/libexec"
+          install -m 0755 sshd "$ROOTFS$PREFIX/sbin/sshd"
+          install -m 0755 ssh-keygen "$ROOTFS$PREFIX/bin/ssh-keygen"
+          install -m 0755 sftp-server "$ROOTFS$PREFIX/libexec/sftp-server"
           "${TARGET}-strip" \
-            "$DESTDIR$PREFIX/sbin/sshd" \
-            "$DESTDIR$PREFIX/bin/ssh-keygen" \
-            "$DESTDIR$PREFIX/libexec/sftp-server"
+            "$ROOTFS$PREFIX/sbin/sshd" \
+            "$ROOTFS$PREFIX/bin/ssh-keygen" \
+            "$ROOTFS$PREFIX/libexec/sftp-server"
 
       - name: Install usable sshd_config
         run: |
           set -eux
-          install -d "$DESTDIR$PREFIX/etc/ssh" "$DESTDIR$PREFIX/var/empty" "$DESTDIR$PREFIX/var/run"
-          if [ ! -f "$DESTDIR$PREFIX/etc/ssh/sshd_config" ]; then
-            cp "$GITHUB_WORKSPACE/src/openssh-${OPENSSH_VERSION}/sshd_config" "$DESTDIR$PREFIX/etc/ssh/sshd_config"
+          install -d "$ROOTFS$PREFIX/etc/ssh" "$ROOTFS$PREFIX/var/empty" "$ROOTFS$PREFIX/var/run"
+          if [ ! -f "$ROOTFS$PREFIX/etc/ssh/sshd_config" ]; then
+            cp "$GITHUB_WORKSPACE/src/openssh-${OPENSSH_VERSION}/sshd_config" "$ROOTFS$PREFIX/etc/ssh/sshd_config"
           fi
           sed -i \
             -e "s|^#HostKey /etc/ssh/|HostKey $PREFIX/etc/ssh/|" \
             -e "s|^#PidFile .*|PidFile $PREFIX/var/run/sshd.pid|" \
             -e "s|^#Subsystem[[:space:]]\\+sftp[[:space:]].*|Subsystem sftp $PREFIX/libexec/sftp-server|" \
-            "$DESTDIR$PREFIX/etc/ssh/sshd_config"
-          grep -q "^Subsystem sftp $PREFIX/libexec/sftp-server" "$DESTDIR$PREFIX/etc/ssh/sshd_config" || \
-            printf '\nSubsystem sftp %s/libexec/sftp-server\n' "$PREFIX" >> "$DESTDIR$PREFIX/etc/ssh/sshd_config"
+            "$ROOTFS$PREFIX/etc/ssh/sshd_config"
+          grep -q "^Subsystem sftp $PREFIX/libexec/sftp-server" "$ROOTFS$PREFIX/etc/ssh/sshd_config" || \
+            printf '\nSubsystem sftp %s/libexec/sftp-server\n' "$PREFIX" >> "$ROOTFS$PREFIX/etc/ssh/sshd_config"
 
       - name: Verify output
         run: |
           set -eux
-          file "$DESTDIR$PREFIX/sbin/sshd" "$DESTDIR$PREFIX/libexec/sftp-server"
-          test -f "$DESTDIR$PREFIX/etc/ssh/sshd_config"
-          "${TARGET}-readelf" -h "$DESTDIR$PREFIX/sbin/sshd"
-          if "${TARGET}-readelf" -d "$DESTDIR$PREFIX/sbin/sshd" 2>/dev/null | grep -q NEEDED; then
+          file "$ROOTFS$PREFIX/sbin/sshd" "$ROOTFS$PREFIX/libexec/sftp-server"
+          test -f "$ROOTFS$PREFIX/etc/ssh/sshd_config"
+          "${TARGET}-readelf" -h "$ROOTFS$PREFIX/sbin/sshd"
+          if "${TARGET}-readelf" -d "$ROOTFS$PREFIX/sbin/sshd" 2>/dev/null | grep -q NEEDED; then
             echo "sshd is not static" >&2
             exit 1
           fi
-          tar -C "$DESTDIR" -czf "$GITHUB_WORKSPACE/openssh-mipsbe-static-mnt-myvol.tar.gz" .
+          tar -C "$ROOTFS" -czf "$GITHUB_WORKSPACE/openssh-mipsbe-static-mnt-myvol.tar.gz" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
