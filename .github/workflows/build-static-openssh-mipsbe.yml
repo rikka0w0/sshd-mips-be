@@ -38,8 +38,10 @@ jobs:
             exit 1
           fi
           TOOLCHAIN_BIN="$(dirname "$TOOLCHAIN_GCC")"
+          echo "STAGING_DIR=$GITHUB_WORKSPACE/toolchain" >> "$GITHUB_ENV"
           echo "$TOOLCHAIN_BIN" >> "$GITHUB_PATH"
-          "$TOOLCHAIN_GCC" -v
+          "$TOOLCHAIN_GCC" --version
+          STAGING_DIR="$GITHUB_WORKSPACE/toolchain" "$TOOLCHAIN_GCC" -x c -c /dev/null -o /tmp/openwrt-toolchain-smoke.o
 
       - name: Prepare paths
         run: |
