@@ -128,17 +128,10 @@ jobs:
               ac_cv_have_decl_strtonum=no \
               ac_cv_func_arc4random=no \
               ac_cv_func_arc4random_buf=no || { cat config.log; exit 1; }
-          make -j"$(nproc)" sshd sshd-session sftp-server ssh-keygen
-          install -d "$ROOTFS$PREFIX/sbin" "$ROOTFS$PREFIX/bin" "$ROOTFS$PREFIX/libexec"
-          install -m 0755 sshd "$ROOTFS$PREFIX/sbin/sshd"
-          install -m 0755 sshd-session "$ROOTFS$PREFIX/libexec/sshd-session"
-          install -m 0755 ssh-keygen "$ROOTFS$PREFIX/bin/ssh-keygen"
-          install -m 0755 sftp-server "$ROOTFS$PREFIX/libexec/sftp-server"
-          "${TARGET}-strip" \
-            "$ROOTFS$PREFIX/sbin/sshd" \
-            "$ROOTFS$PREFIX/libexec/sshd-session" \
-            "$ROOTFS$PREFIX/bin/ssh-keygen" \
-            "$ROOTFS$PREFIX/libexec/sftp-server"
+          make -j"$(nproc)"
+          make install-files DESTDIR="$ROOTFS" STRIP_OPT=
+          find "$ROOTFS$PREFIX/bin" "$ROOTFS$PREFIX/sbin" "$ROOTFS$PREFIX/libexec" \
+            -type f -perm -0100 -exec "${TARGET}-strip" {} +
 
       - name: Install usable sshd_config
         run: |
@@ -158,17 +151,15 @@ jobs:
       - name: Verify output
         run: |
           set -eux
-          file "$ROOTFS$PREFIX/sbin/sshd" "$ROOTFS$PREFIX/libexec/sshd-session" "$ROOTFS$PREFIX/libexec/sftp-server"
+          file "$ROOTFS$PREFIX/sbin/sshd" "$ROOTFS$PREFIX/libexec/"*
           test -f "$ROOTFS$PREFIX/etc/ssh/sshd_config"
-          "${TARGET}-readelf" -h "$ROOTFS$PREFIX/sbin/sshd"
-          if "${TARGET}-readelf" -d "$ROOTFS$PREFIX/sbin/sshd" 2>/dev/null | grep -q NEEDED; then
-            echo "sshd is not static" >&2
-            exit 1
-          fi
-          if "${TARGET}-readelf" -d "$ROOTFS$PREFIX/libexec/sshd-session" 2>/dev/null | grep -q NEEDED; then
-            echo "sshd-session is not static" >&2
-            exit 1
-          fi
+          for exe in "$ROOTFS$PREFIX/sbin/sshd" "$ROOTFS$PREFIX/libexec/"*; do
+            "${TARGET}-readelf" -h "$exe"
+            if "${TARGET}-readelf" -d "$exe" 2>/dev/null | grep -q NEEDED; then
+              echo "$exe is not static" >&2
+              exit 1
+            fi
+          done
           tar -C "$ROOTFS" -czf "$GITHUB_WORKSPACE/openssh-mipsbe-static-mnt-myvol.tar.gz" .
 
       - name: Upload tarball release asset
