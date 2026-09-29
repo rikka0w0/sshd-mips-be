@@ -172,11 +172,12 @@ jobs:
           ASSET: openssh-mipsbe-static-mnt-myvol.tar.gz
         run: |
           set -eux
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
               --title "Static OpenSSH for MIPS BE" \
               --notes "Rolling build of static OpenSSH for OpenWrt bmips/bcm63268." \
               --prerelease
           fi
-          gh release delete-asset "$RELEASE_TAG" "$ASSET" --yes || true
-          gh release upload "$RELEASE_TAG" "$GITHUB_WORKSPACE/$ASSET" --clobber
+          gh release delete-asset "$RELEASE_TAG" "$ASSET" --repo "$GITHUB_REPOSITORY" --yes || true
+          gh release upload "$RELEASE_TAG" "$GITHUB_WORKSPACE/$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
