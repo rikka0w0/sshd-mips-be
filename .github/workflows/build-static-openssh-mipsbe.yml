@@ -31,8 +31,10 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/toolchain"
           curl -L "$TOOLCHAIN_URL" -o /tmp/openwrt-toolchain.tar.zst
           tar --use-compress-program=unzstd -xf /tmp/openwrt-toolchain.tar.zst -C "$GITHUB_WORKSPACE/toolchain" --strip-components=1
-          echo "$GITHUB_WORKSPACE/toolchain/staging_dir/toolchain-mips_mips32_gcc-14.3.0_musl/bin" >> "$GITHUB_PATH"
-          "$GITHUB_WORKSPACE/toolchain/staging_dir/toolchain-mips_mips32_gcc-14.3.0_musl/bin/${TARGET}-gcc" -v
+          TOOLCHAIN_BIN="$(dirname "$(find "$GITHUB_WORKSPACE/toolchain" -type f -name "${TARGET}-gcc" -print -quit)")"
+          test -n "$TOOLCHAIN_BIN"
+          echo "$TOOLCHAIN_BIN" >> "$GITHUB_PATH"
+          "$TOOLCHAIN_BIN/${TARGET}-gcc" -v
 
       - name: Prepare paths
         run: |
