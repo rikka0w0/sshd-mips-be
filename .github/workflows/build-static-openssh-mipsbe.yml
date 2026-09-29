@@ -29,7 +29,7 @@ jobs:
         run: |
           set -eux
           mkdir -p "$GITHUB_WORKSPACE/toolchain"
-          curl -L "$TOOLCHAIN_URL" -o /tmp/openwrt-toolchain.tar.zst
+          curl --fail --retry 3 -L "$TOOLCHAIN_URL" -o /tmp/openwrt-toolchain.tar.zst
           tar --use-compress-program=unzstd -xf /tmp/openwrt-toolchain.tar.zst -C "$GITHUB_WORKSPACE/toolchain" --strip-components=1
           TOOLCHAIN_GCC="$(find "$GITHUB_WORKSPACE/toolchain" \( -type f -o -type l \) -name "${TARGET}-gcc" -print -quit)"
           if [ -z "$TOOLCHAIN_GCC" ]; then
@@ -58,7 +58,7 @@ jobs:
         run: |
           set -eux
           cd "$GITHUB_WORKSPACE/src"
-          curl -L "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" -o zlib.tar.gz
+          curl --fail --retry 3 -L "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" -o zlib.tar.gz
           tar -xf zlib.tar.gz
           cd "zlib-${ZLIB_VERSION}"
           CHOST="$TARGET" CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" \
@@ -70,7 +70,7 @@ jobs:
         run: |
           set -eux
           cd "$GITHUB_WORKSPACE/src"
-          curl -L "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" -o openssl.tar.gz
+          curl --fail --retry 3 -L "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" -o openssl.tar.gz
           tar -xf openssl.tar.gz
           cd "openssl-${OPENSSL_VERSION}"
           CROSS_COMPILE="${TARGET}-" \
@@ -85,7 +85,7 @@ jobs:
         run: |
           set -eux
           cd "$GITHUB_WORKSPACE/src"
-          curl -L "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz" -o openssh.tar.gz
+          curl --fail --retry 3 -L "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz" -o openssh.tar.gz
           tar -xf openssh.tar.gz
           cd "openssh-${OPENSSH_VERSION}"
           CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" STRIP="${TARGET}-strip" \
