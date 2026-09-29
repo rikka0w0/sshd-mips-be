@@ -1,0 +1,155 @@
+name: build-static-openssh-mipsbe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-static-openssh-mipsbe.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    env:
+      TOOLCHAIN_URL: https://downloads.openwrt.org/releases/25.12.5/targets/bmips/bcm63268/openwrt-toolchain-25.12.5-bmips-bcm63268_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+      OPENSSH_VERSION: 10.3p1
+      OPENSSL_VERSION: 3.5.4
+      ZLIB_VERSION: 1.3.1
+      TARGET: mips-openwrt-linux-musl
+      PREFIX: /mnt/myvol
+
+    steps:
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ca-certificates curl file perl pkg-config tar xz-utils zstd
+
+      - name: Download and unpack OpenWrt toolchain
+        run: |
+          set -eux
+          mkdir -p "$GITHUB_WORKSPACE/toolchain"
+          curl -L "$TOOLCHAIN_URL" -o /tmp/openwrt-toolchain.tar.zst
+          tar --use-compress-program=unzstd -xf /tmp/openwrt-toolchain.tar.zst -C "$GITHUB_WORKSPACE/toolchain" --strip-components=1
+          echo "$GITHUB_WORKSPACE/toolchain/staging_dir/toolchain-mips_mips32_gcc-14.3.0_musl/bin" >> "$GITHUB_PATH"
+          "$GITHUB_WORKSPACE/toolchain/staging_dir/toolchain-mips_mips32_gcc-14.3.0_musl/bin/${TARGET}-gcc" -v
+
+      - name: Prepare paths
+        run: |
+          set -eux
+          echo "DEPS=$GITHUB_WORKSPACE/deps" >> "$GITHUB_ENV"
+          echo "DESTDIR=$GITHUB_WORKSPACE/rootfs" >> "$GITHUB_ENV"
+          echo "CFLAGS=-Os -pipe -mips32 -mtune=mips32 -msoft-float" >> "$GITHUB_ENV"
+          echo "CPPFLAGS=-I$GITHUB_WORKSPACE/deps/include" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-static -L$GITHUB_WORKSPACE/deps/lib" >> "$GITHUB_ENV"
+          echo "LIBS=-lssl -lcrypto -lz -latomic" >> "$GITHUB_ENV"
+          mkdir -p "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/deps" "$GITHUB_WORKSPACE/rootfs"
+
+      - name: Build static zlib
+        run: |
+          set -eux
+          cd "$GITHUB_WORKSPACE/src"
+          curl -L "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" -o zlib.tar.gz
+          tar -xf zlib.tar.gz
+          cd "zlib-${ZLIB_VERSION}"
+          CHOST="$TARGET" CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" \
+            ./configure --static --prefix="$DEPS"
+          make -j"$(nproc)"
+          make install
+
+      - name: Build static OpenSSL
+        run: |
+          set -eux
+          cd "$GITHUB_WORKSPACE/src"
+          curl -L "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" -o openssl.tar.gz
+          tar -xf openssl.tar.gz
+          cd "openssl-${OPENSSL_VERSION}"
+          CROSS_COMPILE="${TARGET}-" \
+            ./Configure linux-mips32 \
+              no-shared no-module no-dso no-tests no-async \
+              --prefix="$DEPS" \
+              --openssldir="$DEPS/ssl"
+          make -j"$(nproc)"
+          make install_sw
+
+      - name: Build static OpenSSH
+        run: |
+          set -eux
+          cd "$GITHUB_WORKSPACE/src"
+          curl -L "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz" -o openssh.tar.gz
+          tar -xf openssh.tar.gz
+          cd "openssh-${OPENSSH_VERSION}"
+          CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" STRIP="${TARGET}-strip" \
+          CFLAGS="$CFLAGS" CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS" LIBS="$LIBS" \
+            ./configure \
+              --host="$TARGET" \
+              --build=x86_64-linux-gnu \
+              --prefix="$PREFIX" \
+              --sysconfdir="$PREFIX/etc/ssh" \
+              --libexecdir="$PREFIX/libexec" \
+              --with-ssl-dir="$DEPS" \
+              --with-zlib="$DEPS" \
+              --with-privsep-user=sshd \
+              --with-privsep-path="$PREFIX/var/empty" \
+              --disable-strip \
+              --disable-etc-default-login \
+              --disable-lastlog \
+              --disable-utmp \
+              --disable-utmpx \
+              --disable-wtmp \
+              --disable-wtmpx \
+              --without-bsd-auth \
+              --without-kerberos5 \
+              --without-pam \
+              --without-selinux \
+              --without-security-key-builtin \
+              --without-libedit \
+              --without-xauth \
+              ac_cv_func_strnvis=no \
+              ac_cv_have_decl_strnvis=no \
+              ac_cv_func_strtonum=no \
+              ac_cv_have_decl_strtonum=no \
+              ac_cv_func_arc4random=no \
+              ac_cv_func_arc4random_buf=no
+          make -j"$(nproc)" sshd sftp-server ssh-keygen
+          install -d "$DESTDIR$PREFIX/sbin" "$DESTDIR$PREFIX/bin" "$DESTDIR$PREFIX/libexec"
+          install -m 0755 sshd "$DESTDIR$PREFIX/sbin/sshd"
+          install -m 0755 ssh-keygen "$DESTDIR$PREFIX/bin/ssh-keygen"
+          install -m 0755 sftp-server "$DESTDIR$PREFIX/libexec/sftp-server"
+          "${TARGET}-strip" \
+            "$DESTDIR$PREFIX/sbin/sshd" \
+            "$DESTDIR$PREFIX/bin/ssh-keygen" \
+            "$DESTDIR$PREFIX/libexec/sftp-server"
+
+      - name: Install usable sshd_config
+        run: |
+          set -eux
+          install -d "$DESTDIR$PREFIX/etc/ssh" "$DESTDIR$PREFIX/var/empty" "$DESTDIR$PREFIX/var/run"
+          if [ ! -f "$DESTDIR$PREFIX/etc/ssh/sshd_config" ]; then
+            cp "$GITHUB_WORKSPACE/src/openssh-${OPENSSH_VERSION}/sshd_config" "$DESTDIR$PREFIX/etc/ssh/sshd_config"
+          fi
+          sed -i \
+            -e "s|^#HostKey /etc/ssh/|HostKey $PREFIX/etc/ssh/|" \
+            -e "s|^#PidFile .*|PidFile $PREFIX/var/run/sshd.pid|" \
+            -e "s|^#Subsystem[[:space:]]\\+sftp[[:space:]].*|Subsystem sftp $PREFIX/libexec/sftp-server|" \
+            "$DESTDIR$PREFIX/etc/ssh/sshd_config"
+          grep -q "^Subsystem sftp $PREFIX/libexec/sftp-server" "$DESTDIR$PREFIX/etc/ssh/sshd_config" || \
+            printf '\nSubsystem sftp %s/libexec/sftp-server\n' "$PREFIX" >> "$DESTDIR$PREFIX/etc/ssh/sshd_config"
+
+      - name: Verify output
+        run: |
+          set -eux
+          file "$DESTDIR$PREFIX/sbin/sshd" "$DESTDIR$PREFIX/libexec/sftp-server"
+          test -f "$DESTDIR$PREFIX/etc/ssh/sshd_config"
+          "${TARGET}-readelf" -h "$DESTDIR$PREFIX/sbin/sshd"
+          if "${TARGET}-readelf" -d "$DESTDIR$PREFIX/sbin/sshd" 2>/dev/null | grep -q NEEDED; then
+            echo "sshd is not static" >&2
+            exit 1
+          fi
+          tar -C "$DESTDIR" -czf "$GITHUB_WORKSPACE/openssh-mipsbe-static-mnt-myvol.tar.gz" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openssh-mipsbe-static-mnt-myvol
+          path: openssh-mipsbe-static-mnt-myvol.tar.gz
