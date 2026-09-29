@@ -108,6 +108,7 @@ jobs:
               --libexecdir="$PREFIX/usr/libexec" \
               --with-ssl-dir="$DEPS" \
               --with-zlib="$DEPS" \
+              --with-sandbox=rlimit \
               --with-privsep-user=sshd \
               --with-privsep-path="$PREFIX/var/empty" \
               --disable-strip \
