@@ -96,11 +96,8 @@ jobs:
           curl --fail --retry 3 -L "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-${OPENSSH_VERSION}.tar.gz" -o openssh.tar.gz
           tar -xf openssh.tar.gz
           cd "openssh-${OPENSSH_VERSION}"
-          sed -i \
-            -e '0,/select_works_with_rlimit=no/s//select_works_with_rlimit=yes/' \
-            configure
           CC="${TARGET}-gcc" AR="${TARGET}-ar" RANLIB="${TARGET}-ranlib" STRIP="${TARGET}-strip" \
-          CFLAGS="$CFLAGS" CPPFLAGS="$CPPFLAGS -DSANDBOX_SKIP_RLIMIT_NOFILE" LDFLAGS="$LDFLAGS" LIBS="$LIBS" \
+          CFLAGS="$CFLAGS" CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS" LIBS="$LIBS" \
             ./configure \
               --host="$TARGET" \
               --build=x86_64-linux-gnu \
@@ -111,7 +108,7 @@ jobs:
               --libexecdir="$PREFIX/usr/libexec" \
               --with-ssl-dir="$DEPS" \
               --with-zlib="$DEPS" \
-              --with-sandbox=rlimit \
+              --with-sandbox=no \
               --with-privsep-user=sshd \
               --with-privsep-path="$PREFIX/var/empty" \
               --disable-strip \
