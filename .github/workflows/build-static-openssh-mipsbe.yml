@@ -12,7 +12,7 @@ jobs:
 
     env:
       TOOLCHAIN_URL: https://downloads.openwrt.org/releases/25.12.5/targets/bmips/bcm63268/openwrt-toolchain-25.12.5-bmips-bcm63268_gcc-14.3.0_musl.Linux-x86_64.tar.zst
-      OPENSSH_VERSION: 10.3p1
+      OPENSSH_VERSION: 10.5p1
       OPENSSL_VERSION: 3.5.4
       ZLIB_VERSION: 1.3.1
       TARGET: mips-openwrt-linux-musl
@@ -51,7 +51,7 @@ jobs:
           echo "CFLAGS=-Os -pipe -mips32 -mtune=mips32 -msoft-float" >> "$GITHUB_ENV"
           echo "CPPFLAGS=-I$GITHUB_WORKSPACE/deps/include" >> "$GITHUB_ENV"
           echo "LDFLAGS=-static -L$GITHUB_WORKSPACE/deps/lib" >> "$GITHUB_ENV"
-          echo "LIBS=-lssl -lcrypto -lz -latomic" >> "$GITHUB_ENV"
+          echo "LIBS=-latomic" >> "$GITHUB_ENV"
           mkdir -p "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/deps" "$GITHUB_WORKSPACE/rootfs"
 
       - name: Build static zlib
@@ -119,7 +119,7 @@ jobs:
               ac_cv_func_strtonum=no \
               ac_cv_have_decl_strtonum=no \
               ac_cv_func_arc4random=no \
-              ac_cv_func_arc4random_buf=no
+              ac_cv_func_arc4random_buf=no || { cat config.log; exit 1; }
           make -j"$(nproc)" sshd sftp-server ssh-keygen
           install -d "$DESTDIR$PREFIX/sbin" "$DESTDIR$PREFIX/bin" "$DESTDIR$PREFIX/libexec"
           install -m 0755 sshd "$DESTDIR$PREFIX/sbin/sshd"
