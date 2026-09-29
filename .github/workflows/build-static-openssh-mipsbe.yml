@@ -102,8 +102,10 @@ jobs:
               --host="$TARGET" \
               --build=x86_64-linux-gnu \
               --prefix="$PREFIX" \
+              --bindir="$PREFIX/usr/bin" \
+              --sbindir="$PREFIX/usr/sbin" \
               --sysconfdir="$PREFIX/etc/ssh" \
-              --libexecdir="$PREFIX/libexec" \
+              --libexecdir="$PREFIX/usr/libexec" \
               --with-ssl-dir="$DEPS" \
               --with-zlib="$DEPS" \
               --with-privsep-user=sshd \
@@ -130,7 +132,7 @@ jobs:
               ac_cv_func_arc4random_buf=no || { cat config.log; exit 1; }
           make -j"$(nproc)"
           make install-files DESTDIR="$ROOTFS" STRIP_OPT=
-          find "$ROOTFS$PREFIX/bin" "$ROOTFS$PREFIX/sbin" "$ROOTFS$PREFIX/libexec" \
+          find "$ROOTFS$PREFIX/usr/bin" "$ROOTFS$PREFIX/usr/sbin" "$ROOTFS$PREFIX/usr/libexec" \
             -type f -perm -0100 -exec "${TARGET}-strip" {} +
 
       - name: Install usable sshd_config
@@ -143,17 +145,17 @@ jobs:
           sed -i \
             -e "s|^#HostKey /etc/ssh/|HostKey $PREFIX/etc/ssh/|" \
             -e "s|^#PidFile .*|PidFile $PREFIX/var/run/sshd.pid|" \
-            -e "s|^#Subsystem[[:space:]]\\+sftp[[:space:]].*|Subsystem sftp $PREFIX/libexec/sftp-server|" \
+            -e "s|^#Subsystem[[:space:]]\\+sftp[[:space:]].*|Subsystem sftp $PREFIX/usr/libexec/sftp-server|" \
             "$ROOTFS$PREFIX/etc/ssh/sshd_config"
-          grep -q "^Subsystem sftp $PREFIX/libexec/sftp-server" "$ROOTFS$PREFIX/etc/ssh/sshd_config" || \
-            printf '\nSubsystem sftp %s/libexec/sftp-server\n' "$PREFIX" >> "$ROOTFS$PREFIX/etc/ssh/sshd_config"
+          grep -q "^Subsystem sftp $PREFIX/usr/libexec/sftp-server" "$ROOTFS$PREFIX/etc/ssh/sshd_config" || \
+            printf '\nSubsystem sftp %s/usr/libexec/sftp-server\n' "$PREFIX" >> "$ROOTFS$PREFIX/etc/ssh/sshd_config"
 
       - name: Verify output
         run: |
           set -eux
-          file "$ROOTFS$PREFIX/sbin/sshd" "$ROOTFS$PREFIX/libexec/"*
+          file "$ROOTFS$PREFIX/usr/sbin/sshd" "$ROOTFS$PREFIX/usr/libexec/"*
           test -f "$ROOTFS$PREFIX/etc/ssh/sshd_config"
-          for exe in "$ROOTFS$PREFIX/sbin/sshd" "$ROOTFS$PREFIX/libexec/"*; do
+          for exe in "$ROOTFS$PREFIX/usr/sbin/sshd" "$ROOTFS$PREFIX/usr/libexec/"*; do
             "${TARGET}-readelf" -h "$exe"
             if "${TARGET}-readelf" -d "$exe" 2>/dev/null | grep -q NEEDED; then
               echo "$exe is not static" >&2
