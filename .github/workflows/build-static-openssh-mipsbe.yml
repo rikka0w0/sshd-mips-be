@@ -130,7 +130,9 @@ jobs:
               ac_cv_func_strtonum=no \
               ac_cv_have_decl_strtonum=no \
               ac_cv_func_arc4random=no \
-              ac_cv_func_arc4random_buf=no || { cat config.log; exit 1; }
+              ac_cv_func_arc4random_buf=no \
+              ac_cv_have_decl_SECCOMP_MODE_FILTER=no \
+              ac_cv_type_nfds_t=yes || { cat config.log; exit 1; }
           make -j"$(nproc)"
           make install-files DESTDIR="$ROOTFS" STRIP_OPT=
           find "$ROOTFS$PREFIX/usr/bin" "$ROOTFS$PREFIX/usr/sbin" "$ROOTFS$PREFIX/usr/libexec" \
